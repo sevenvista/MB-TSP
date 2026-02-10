@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: mb-tsp-rabbitmq
+    ports:
+      - "5672:5672"    # AMQP port
+      - "15672:15672"  # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - mb-tsp-network
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mb-tsp-api
+    ports:
+      - "8000:8000"
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      MAP_REQUEST_QUEUE: map_processing_requests
+      MAP_RESPONSE_QUEUE: map_processing_responses
+      TSP_REQUEST_QUEUE: tsp_requests
+      TSP_RESPONSE_QUEUE: tsp_responses
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - mb-tsp-network
+
+volumes:
+  rabbitmq_data:
+    driver: local
+
+networks:
+  mb-tsp-network:
+    driver: bridge

@@ -1,0 +1,19 @@
+[project]
+name = "mb-tsp"
+version = "0.1.0"
+description = "Map Processing and TSP API with FastAPI and RabbitMQ"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.109.0",
+    "uvicorn>=0.27.0",
+    "pika>=1.3.2",
+    "pydantic>=2.5.3",
+    "python-multipart>=0.0.6",
+]
+
+[project.scripts]
+mb-tsp = "main:app"
+
+[tool.uv]
+dev-dependencies = []
