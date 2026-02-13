@@ -96,6 +96,28 @@ make up
 
 That's it! The API will be available at `http://localhost:8000` and RabbitMQ management UI at `http://localhost:15672`
 
+### Option 1b: Pre-built image from GHCR
+
+When this repo is on GitHub, the API image is published to [GitHub Container Registry (ghcr.io)](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry) on every push or merge to `main`.
+
+Replace `OWNER/REPO` with your GitHub org/repo (e.g. `edwardwong/MB-TSP`):
+
+```yaml
+# docker-compose.yml - use published image instead of building
+services:
+  api:
+    image: ghcr.io/OWNER/REPO:latest
+    # ... same env, ports, volumes as in docker-compose.yml
+```
+
+Pull and run:
+
+```bash
+docker pull ghcr.io/OWNER/REPO:latest
+```
+
+Tags: `latest` (main), `main`, and the git SHA.
+
 ### Option 2: Local Development with uv
 
 1. Install uv (if not already installed):
