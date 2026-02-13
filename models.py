@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import List, Optional
+from typing import List, Optional, Union
 from pydantic import BaseModel
 
 
@@ -13,16 +13,17 @@ class EType(str, Enum):
 
 class Cell(BaseModel):
     type: EType
-    id: Optional[str] = None
+    id: Union[str, None, int] = None
 
 
 class MapProcessRequest(BaseModel):
     map: List[List[Cell]]
-    mapid: str
+    mapid: Union[str, int]
+    jobid: Union[str, int]
 
 
 class MapProcessResponse(BaseModel):
-    jobid: str
+    jobid: Union[str, int]
     status: str  # "complete" or "error"
     errormessage: Optional[str] = None
 
@@ -35,12 +36,12 @@ class Distance(BaseModel):
 
 class TSPRequest(BaseModel):
     jobid: str
-    mapid: str
-    point_of_interest: List[str]
+    mapid: Union[str, int]
+    point_of_interest: List[Union[str, int]]
 
 
 class TSPResponse(BaseModel):
-    point_of_interest: Optional[List[str]] = None
+    point_of_interest: Optional[List[str]] = None  # Always strings (matches stored distances)
     jobid: str
     errormessage: Optional[str] = None
     status: str  # "complete" or "error"

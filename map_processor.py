@@ -1,6 +1,6 @@
 import json
 import os
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Union
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from models import Cell, EType, Distance
 from astar import astar_pathfinding
@@ -27,7 +27,7 @@ class MapProcessor:
         self, 
         grid: List[List[Cell]], 
         cell_type: EType
-    ) -> List[Tuple[str, Tuple[int, int]]]:
+    ) -> List[Tuple[Union[str, int], Tuple[int, int]]]:
         """Find all cells of a specific type and return (id, position)"""
         cells = []
         for row_idx, row in enumerate(grid):
@@ -39,9 +39,9 @@ class MapProcessor:
     def calculate_distance(
         self, 
         grid: List[List[Cell]], 
-        from_id: str, 
+        from_id: Union[str, int], 
         from_pos: Tuple[int, int],
-        to_id: str,
+        to_id: Union[str, int],
         to_pos: Tuple[int, int]
     ) -> Distance:
         """Calculate distance between two points using A*"""
@@ -50,9 +50,9 @@ class MapProcessor:
         if distance is None:
             distance = -1  # Indicate no path exists
         
-        return Distance(from_id=from_id, to_id=to_id, distance=distance)
+        return Distance(from_id=str(from_id), to_id=str(to_id), distance=distance)
     
-    def process_map(self, grid: List[List[Cell]], mapid: str) -> List[Distance]:
+    def process_map(self, grid: List[List[Cell]], mapid: Union[str, int]) -> List[Distance]:
         """
         Process the map and calculate all required distances using multithreading
         """
@@ -110,16 +110,16 @@ class MapProcessor:
         
         return distances
     
-    def save_distances(self, mapid: str, distances: List[Distance]):
+    def save_distances(self, mapid: Union[str, int], distances: List[Distance]):
         """Save distances to a JSON file"""
         filepath = os.path.join(self.data_dir, f"{mapid}.json")
         data = [d.model_dump() for d in distances]
-        
+        print(data)
         with open(filepath, 'w') as f:
             json.dump(data, f, indent=2)
     
-    def load_distances(self, mapid: str) -> Dict[Tuple[str, str], int]:
-        """Load distances from a JSON file"""
+    def load_distances(self, mapid: Union[str, int]) -> Dict[Tuple[str, str], int]:
+        """Load distances from a JSON file. IDs are always stored and returned as strings."""
         filepath = os.path.join(self.data_dir, f"{mapid}.json")
         
         if not os.path.exists(filepath):
@@ -128,10 +128,9 @@ class MapProcessor:
         with open(filepath, 'r') as f:
             data = json.load(f)
         
-        # Convert to dictionary for easier lookup
         distances = {}
         for item in data:
-            key = (item['from_id'], item['to_id'])
+            key = (str(item['from_id']), str(item['to_id']))
             distances[key] = item['distance']
         
         return distances

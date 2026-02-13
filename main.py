@@ -17,7 +17,7 @@ rabbitmq_handler = RabbitMQHandler(
     map_request_queue=MAP_REQUEST_QUEUE,
     map_response_queue=MAP_RESPONSE_QUEUE,
     tsp_request_queue=TSP_REQUEST_QUEUE,
-    tsp_response_queue=TSP_RESPONSE_QUEUE
+    tsp_response_queue=TSP_RESPONSE_QUEUE,
 )
 
 
@@ -29,26 +29,22 @@ async def lifespan(app: FastAPI):
     """
     # Startup: Initialize RabbitMQ queues and start consumer
     rabbitmq_handler.setup_queues()
-    
+
     # Start consumer in a separate thread
     consumer_thread = threading.Thread(
-        target=rabbitmq_handler.start_consuming,
-        daemon=True
+        target=rabbitmq_handler.start_consuming, daemon=True
     )
     consumer_thread.start()
-    
+
     print("RabbitMQ consumer started")
-    
+
     yield
-    
+
     # Shutdown: cleanup code would go here if needed
     print("Application shutting down")
 
 
-app = FastAPI(
-    title="Map Processing and TSP API",
-    lifespan=lifespan
-)
+app = FastAPI(title="Map Processing and TSP API", lifespan=lifespan)
 
 
 @app.get("/")
@@ -61,8 +57,8 @@ async def root():
             "map_request": MAP_REQUEST_QUEUE,
             "map_response": MAP_RESPONSE_QUEUE,
             "tsp_request": TSP_REQUEST_QUEUE,
-            "tsp_response": TSP_RESPONSE_QUEUE
-        }
+            "tsp_response": TSP_RESPONSE_QUEUE,
+        },
     }
 
 
@@ -74,4 +70,5 @@ async def health():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+    uvicorn.run(app, host="0.0.0.0", port=8001)
