@@ -1,14 +1,17 @@
 """
 Test script to compare TSP algorithms and demonstrate improvements.
 """
+import random
 import time
 from typing import Dict, Tuple
 from tsp_solver import (
     solve_tsp,
+    solve_tsp_aco,
     solve_tsp_bruteforce,
+    solve_tsp_heuristic,
     solve_tsp_nearest_neighbor,
     improve_with_2opt,
-    calculate_path_distance
+    calculate_path_distance,
 )
 
 
@@ -71,16 +74,16 @@ def test_small_problem():
     print(f"   Time: {nn_time*1000 + opt_time*1000:.2f}ms")
     print(f"   Quality: {(improved_dist/optimal_dist - 1)*100:+.1f}% vs optimal")
     
-    # Test new heuristic solver
-    print("\n4. New Heuristic Solver (solve_tsp):")
+    # Test default solver (brute force for 7 points)
+    print("\n4. Default solver (solve_tsp, brute force for ≤7):")
     start = time.time()
-    heuristic_path = solve_tsp(distances, points)
+    default_path = solve_tsp(distances, points)
     h_time = time.time() - start
-    heuristic_dist = calculate_path_distance(distances, heuristic_path)
-    print(f"   Path: {' -> '.join(heuristic_path)}")
-    print(f"   Distance: {heuristic_dist}")
+    default_dist = calculate_path_distance(distances, default_path)
+    print(f"   Path: {' -> '.join(default_path)}")
+    print(f"   Distance: {default_dist}")
     print(f"   Time: {h_time*1000:.2f}ms")
-    print(f"   Quality: {(heuristic_dist/optimal_dist - 1)*100:+.1f}% vs optimal")
+    print(f"   Quality: {(default_dist/optimal_dist - 1)*100:+.1f}% vs optimal")
 
 
 def test_medium_problem():
@@ -113,14 +116,14 @@ def test_medium_problem():
     print(f"   Time: {opt_time*1000:.2f}ms")
     print(f"   Improvement: {improvement:.1f}% better than NN")
     
-    # Test new heuristic solver
-    print("\n3. New Heuristic Solver (Multi-start + 2-opt + 3-opt):")
+    # Test default solver (ACO for 8+ points)
+    print("\n3. Default solver (ACO):")
     start = time.time()
-    heuristic_path = solve_tsp(distances, points)
+    aco_path = solve_tsp(distances, points)
     h_time = time.time() - start
-    heuristic_dist = calculate_path_distance(distances, heuristic_path)
-    improvement_vs_nn = (1 - heuristic_dist/nn_dist) * 100
-    print(f"   Distance: {heuristic_dist}")
+    aco_dist = calculate_path_distance(distances, aco_path)
+    improvement_vs_nn = (1 - aco_dist/nn_dist) * 100
+    print(f"   Distance: {aco_dist}")
     print(f"   Time: {h_time*1000:.2f}ms")
     print(f"   Improvement: {improvement_vs_nn:.1f}% better than NN")
 
@@ -144,16 +147,98 @@ def test_large_problem():
     print(f"   Distance: {nn_dist}")
     print(f"   Time: {nn_time*1000:.2f}ms")
     
-    # Test new heuristic solver
-    print("\n2. New Heuristic Solver (Multi-start + 2-opt):")
+    # Test default solver (ACO)
+    print("\n2. Default solver (ACO):")
     start = time.time()
-    heuristic_path = solve_tsp(distances, points)
+    aco_path = solve_tsp(distances, points)
     h_time = time.time() - start
-    heuristic_dist = calculate_path_distance(distances, heuristic_path)
-    improvement = (1 - heuristic_dist/nn_dist) * 100
-    print(f"   Distance: {heuristic_dist}")
+    aco_dist = calculate_path_distance(distances, aco_path)
+    improvement = (1 - aco_dist/nn_dist) * 100
+    print(f"   Distance: {aco_dist}")
     print(f"   Time: {h_time*1000:.2f}ms")
     print(f"   Improvement: {improvement:.1f}% better than NN")
+
+
+def test_solve_tsp_aco():
+    """Test solve_tsp_aco: valid tour shape, permutation, fixed seed for reproducibility."""
+    print("\n" + "=" * 60)
+    print("TEST: solve_tsp_aco (ACO solver)")
+    print("=" * 60)
+    n = 8
+    points = [f"p{i}" for i in range(n)]
+    distances = create_sample_distances(n)
+    random.seed(42)
+    path = solve_tsp_aco(distances, points)
+    assert path is not None, "ACO should return a path"
+    assert set(path) == set(points), "Path must be a permutation of points"
+    assert len(path) == n, "Path length must equal number of points"
+    dist = calculate_path_distance(distances, path)
+    assert dist is not None and dist >= 0, "Path must have valid total distance"
+    print(f"   Path: {' -> '.join(path)}")
+    print(f"   Distance: {dist}")
+    # Reproducibility: same seed -> same path
+    random.seed(42)
+    path2 = solve_tsp_aco(distances, points)
+    assert path == path2, "Fixed seed should give reproducible path"
+    # Empty / single point
+    assert solve_tsp_aco(distances, []) == []
+    assert solve_tsp_aco(distances, ["p0"]) == ["p0"]
+    print("   ✓ Valid tour, permutation, and empty/single-point handling OK")
+
+
+def test_algorithm_selection():
+    """Test algorithm selection: default ACO for >7, heuristic when requested, ≤7 brute force."""
+    print("\n" + "=" * 60)
+    print("TEST: Algorithm selection")
+    print("=" * 60)
+    # ≤7 points: always brute force
+    points_7 = [f"p{i}" for i in range(7)]
+    distances_7 = create_sample_distances(7)
+    path_bf = solve_tsp(distances_7, points_7)
+    path_bf_explicit = solve_tsp(distances_7, points_7, algorithm="aco")
+    # Both should be optimal (brute force)
+    assert path_bf is not None and path_bf_explicit is not None
+    d_bf = calculate_path_distance(distances_7, path_bf)
+    d_aco = calculate_path_distance(distances_7, path_bf_explicit)
+    assert d_bf == d_aco, "For ≤7 points both default and aco use same path (brute force)"
+    print("   ✓ ≤7 points: brute force (default and algorithm='aco')")
+
+    # >7 points: default uses ACO
+    points_10 = [f"p{i}" for i in range(10)]
+    distances_10 = create_sample_distances(10)
+    path_default = solve_tsp(distances_10, points_10)
+    assert path_default is not None
+    assert set(path_default) == set(points_10)
+    print("   ✓ >7 points: default returns valid path (ACO)")
+
+    # Explicit heuristic
+    path_heuristic = solve_tsp(distances_10, points_10, algorithm="heuristic")
+    assert path_heuristic is not None
+    assert set(path_heuristic) == set(points_10)
+    d_heur = calculate_path_distance(distances_10, path_heuristic)
+    assert d_heur is not None
+    print(f"   ✓ algorithm='heuristic' returns valid path (distance={d_heur})")
+
+
+def test_heuristic_still_works():
+    """Ensure heuristic path is still callable and tested (task 3.3)."""
+    print("\n" + "=" * 60)
+    print("TEST: Heuristic path still works")
+    print("=" * 60)
+    n = 15
+    points = [f"p{i}" for i in range(n)]
+    distances = create_sample_distances(n)
+    path = solve_tsp(distances, points, algorithm="heuristic")
+    assert path is not None
+    assert set(path) == set(points)
+    assert len(path) == n
+    d = calculate_path_distance(distances, path)
+    assert d is not None
+    # Direct call to solve_tsp_heuristic
+    path_direct = solve_tsp_heuristic(distances, points)
+    assert path_direct is not None
+    assert set(path_direct) == set(points)
+    print("   ✓ Heuristic path (solve_tsp(..., algorithm='heuristic') and solve_tsp_heuristic) OK")
 
 
 def main():
@@ -166,7 +251,10 @@ def main():
     test_small_problem()
     test_medium_problem()
     test_large_problem()
-    
+    test_solve_tsp_aco()
+    test_algorithm_selection()
+    test_heuristic_still_works()
+
     print("\n" + "=" * 60)
     print("SUMMARY")
     print("=" * 60)

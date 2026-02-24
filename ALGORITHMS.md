@@ -22,11 +22,12 @@ The original implementation used:
 
 ### Strategy by Problem Size
 
-| Points | Algorithm | Quality | Speed |
-|--------|-----------|---------|-------|
-| ≤7 | Brute force | Optimal | Fast |
-| 8-10 | NN + 2-opt | Near-optimal | Fast |
-| >10 | Multi-start NN + 2-opt + 3-opt | 2-5% from optimal | Medium |
+| Points | Default algorithm | Alternative |
+|--------|-------------------|-------------|
+| ≤7 | Brute force (optimal) | — |
+| 8+ | **Ant Colony Optimization (ACO)** | Heuristic (NN + 2-opt/3-opt) via `algorithm='heuristic'` |
+
+The default for 8+ points is ACO. To use the previous heuristic (e.g. if ACO performance is not satisfactory), call `solve_tsp(distances, points, algorithm='heuristic')`. The heuristic implementation remains in the codebase.
 
 ### Algorithms Implemented
 
@@ -101,7 +102,17 @@ Crossing eliminated!
 
 **Reference:** [Wikipedia - k-opt](https://en.wikipedia.org/wiki/Travelling_salesman_problem#k-opt_heuristic,_or_Lin%E2%80%93Kernighan_heuristics)
 
-#### 4. Multi-start Strategy
+#### 4. Ant Colony Optimization (ACO)
+
+**Description:** Metaheuristic that simulates ants depositing pheromone on edges; ants build tours probabilistically (biased by pheromone and inverse distance), and pheromone is updated after each iteration. Good exploration/exploitation balance.
+
+**Usage:** Default for 8+ points when using `solve_tsp(distances, points)`. Results may vary run-to-run (stochastic). Use `solve_tsp_aco(distances, points)` to call ACO directly.
+
+**Switching back to heuristic:** Call `solve_tsp(distances, points, algorithm='heuristic')` to use the previous NN + 2-opt/3-opt path.
+
+**Reference:** [Ant colony optimization - Wikipedia](https://en.wikipedia.org/wiki/Ant_colony_optimization_algorithms)
+
+#### 5. Multi-start Strategy
 
 **Description:** Run nearest neighbor from multiple different starting points and choose the best result.
 
@@ -179,8 +190,8 @@ This will:
 
 1. **Simulated Annealing**: Accept worse solutions with decreasing probability to escape local optima
 2. **Genetic Algorithms**: Evolve populations of solutions over generations
-3. **Ant Colony Optimization**: Simulate ant behavior to find good solutions
-4. **Branch and Bound**: For exact solutions on larger problems (with time limit)
-5. **GPU Acceleration**: Parallelize 2-opt/3-opt operations for massive speedup
+3. **Branch and Bound**: For exact solutions on larger problems (with time limit)
+4. **GPU Acceleration**: Parallelize 2-opt/3-opt or ACO for massive speedup
+5. **ACO parameter tuning**: Expose or tune ants, iterations, evaporation for different instance sizes
 
-These would provide even better solutions but with increased complexity and computational cost.
+ACO is already implemented and used by default for 8+ points; the heuristic remains available via `algorithm='heuristic'`.

@@ -19,25 +19,24 @@ import random
 
 
 def solve_tsp(
-    distances: Dict[Tuple[str, str], int], points: List[str]
+    distances: Dict[Tuple[str, str], int],
+    points: List[str],
+    algorithm: Optional[str] = None,
 ) -> Optional[List[str]]:
     """
-    Solve Traveling Salesman Problem using modern heuristic algorithms.
+    Solve Traveling Salesman Problem.
 
     Strategy:
-    - Very small (≤7): Brute force for optimal solution
-    - Small (≤10): Nearest neighbor + 2-opt improvement
-    - Medium/Large (>10): Multiple nearest neighbor starts + 2-opt + 3-opt
-
-    Based on algorithms from:
-    https://en.wikipedia.org/wiki/Travelling_salesman_problem
+    - Very small (≤7): Brute force for optimal solution (always)
+    - Larger (8+): ACO by default, or heuristic if algorithm='heuristic'
 
     Args:
         distances: Dictionary mapping (from_id, to_id) to distance (string IDs only)
         points: List of point IDs to visit (strings; request int/str normalized by caller)
+        algorithm: 'aco' (default for 8+ points), 'heuristic', or None (use default)
 
     Returns:
-        Near-optimal path as list of string point IDs, or None if no valid path exists
+        Path as list of string point IDs, or None if no valid path exists
     """
     if not points:
         return []
@@ -45,20 +44,21 @@ def solve_tsp(
     if len(points) == 1:
         return points
 
-    # For very small problems (≤7 points), use brute force for optimal solution
+    # For very small problems (≤7 points), always use brute force
     if len(points) <= 7:
         return solve_tsp_bruteforce(distances, points)
 
-    # For small to medium problems, use nearest neighbor + 2-opt
-    elif len(points) <= 10:
-        initial_path = solve_tsp_nearest_neighbor(distances, points)
-        if initial_path is None:
-            return None
-        return improve_with_2opt(distances, initial_path)
-
-    # For larger problems, use multiple starts with 2-opt and 3-opt
-    else:
+    # For 8+ points: ACO by default, heuristic if explicitly selected
+    use_heuristic = algorithm == "heuristic"
+    if use_heuristic:
+        if len(points) <= 10:
+            initial_path = solve_tsp_nearest_neighbor(distances, points)
+            if initial_path is None:
+                return None
+            return improve_with_2opt(distances, initial_path)
         return solve_tsp_heuristic(distances, points)
+    # Default: ACO
+    return solve_tsp_aco(distances, points)
 
 
 def solve_tsp_bruteforce(
@@ -191,6 +191,127 @@ def solve_tsp_heuristic(
     # (only for moderate sizes, as 3-opt is expensive)
     if len(points) <= 50:
         best_path = improve_with_3opt(distances, best_path)
+
+    return best_path
+
+
+# ACO parameters (fixed defaults per design)
+_ACO_N_ANTS = 10
+_ACO_N_ITERATIONS = 50
+_ACO_RHO = 0.5
+_ACO_ALPHA = 1.0
+_ACO_BETA = 2.0
+
+
+def solve_tsp_aco(
+    distances: Dict[Tuple[str, str], int], points: List[str]
+) -> Optional[List[str]]:
+    """
+    Solve TSP using Ant Colony Optimization.
+
+    Same interface as other solvers: (distances, points) -> path or None.
+    Uses get_distance and calculate_path_distance. Fixed parameters;
+    results may vary run-to-run (stochastic).
+    """
+    if not points:
+        return []
+    if len(points) == 1:
+        return points
+    n = len(points)
+    if n == 2:
+        path1 = [points[0], points[1]]
+        if get_distance(distances, points[0], points[1]) is not None:
+            return path1
+        path2 = [points[1], points[0]]
+        if get_distance(distances, points[1], points[0]) is not None:
+            return path2
+        return None
+
+    n_ants = min(_ACO_N_ANTS, n)
+    n_iterations = _ACO_N_ITERATIONS
+    rho = _ACO_RHO
+    alpha = _ACO_ALPHA
+    beta = _ACO_BETA
+
+    # Pheromone: key (i, j) = (point index, point index), value >= 0
+    # Initialize to 1.0 so first iteration is distance-biased
+    tau = {}
+    for i in range(n):
+        for j in range(n):
+            if i != j and get_distance(distances, points[i], points[j]) is not None:
+                tau[(i, j)] = 1.0
+
+    best_path = None
+    best_distance: Optional[float] = None
+
+    for _ in range(n_iterations):
+        ant_paths: List[List[int]] = []
+        for _ in range(n_ants):
+            start = random.randint(0, n - 1)
+            unvisited = set(range(n)) - {start}
+            path_idx = [start]
+            current = start
+            while unvisited:
+                candidates = [
+                    j
+                    for j in unvisited
+                    if get_distance(distances, points[current], points[j]) is not None
+                ]
+                if not candidates:
+                    break
+                probs = []
+                for j in candidates:
+                    d = get_distance(distances, points[current], points[j])
+                    if d is None or d <= 0:
+                        eta = 1.0
+                    else:
+                        eta = 1.0 / d
+                    p = (tau.get((current, j), 1e-10) ** alpha) * (eta ** beta)
+                    probs.append((j, p))
+                total = sum(p for _, p in probs)
+                if total <= 0:
+                    break
+                r = random.random() * total
+                chosen = candidates[0]
+                for j, p in probs:
+                    r -= p
+                    if r <= 0:
+                        chosen = j
+                        break
+                path_idx.append(chosen)
+                unvisited.discard(chosen)
+                current = chosen
+            if len(path_idx) == n:
+                ant_paths.append(path_idx)
+
+        # Evaporation
+        for k in list(tau.keys()):
+            tau[k] *= 1 - rho
+            if tau[k] < 1e-10:
+                del tau[k]
+
+        # Reward: add pheromone for each ant's tour
+        for path_idx in ant_paths:
+            if len(path_idx) != n:
+                continue
+            path_ids = [points[i] for i in path_idx]
+            d = calculate_path_distance(distances, path_ids)
+            if d is None:
+                continue
+            delta = 1.0 / d
+            for k in range(n):
+                i, j = path_idx[k], path_idx[(k + 1) % n]
+                key = (i, j)
+                tau[key] = tau.get(key, 0) + delta
+                if best_distance is None or d < best_distance:
+                    best_distance = d
+                    best_path = path_ids
+
+        if best_path is None and ant_paths:
+            # Fallback: take first complete tour
+            path_idx = ant_paths[0]
+            best_path = [points[i] for i in path_idx]
+            best_distance = calculate_path_distance(distances, best_path)
 
     return best_path
 

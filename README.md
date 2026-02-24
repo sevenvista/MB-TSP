@@ -71,7 +71,7 @@ A FastAPI server with RabbitMQ integration for map processing using A* pathfindi
 
 **Process:**
 - Loads pre-computed distances from `data/{mapid}.json`
-- Solves TSP using brute force (≤10 points) or nearest neighbor heuristic (>10 points)
+- Solves TSP using brute force (≤7 points) or Ant Colony Optimization (ACO) by default for 8+ points; optional heuristic algorithm available
 - Returns optimal visiting order
 
 ## Prerequisites
@@ -344,20 +344,21 @@ Example structure:
 
 ### TSP Solver
 
-Modern heuristic algorithms based on research from [Travelling Salesman Problem - Wikipedia](https://en.wikipedia.org/wiki/Travelling_salesman_problem):
+The solver uses brute force for very small instances and **Ant Colony Optimization (ACO)** by default for larger ones; the previous heuristic (nearest neighbor + 2-opt/3-opt) is still available.
 
-- **Very Small (≤7 points)**: Brute force enumeration for optimal solution
-- **Small (8-10 points)**: Nearest neighbor + 2-opt improvement
-- **Medium/Large (>10 points)**: Multi-start nearest neighbor + 2-opt + 3-opt optimization
+- **Very Small (≤7 points)**: Brute force for optimal solution
+- **8+ points (default)**: Ant Colony Optimization (ACO)
+- **8+ points (optional)**: Heuristic (nearest neighbor + 2-opt/3-opt) — use `algorithm='heuristic'` when calling `solve_tsp` to switch back if needed
+
+Based on [Travelling Salesman Problem - Wikipedia](https://en.wikipedia.org/wiki/Travelling_salesman_problem) and [Ant colony optimization - Wikipedia](https://en.wikipedia.org/wiki/Ant_colony_optimization_algorithms).
 
 #### Quick Overview
 
 | Algorithm | Description | Quality |
 |-----------|-------------|---------|
-| Nearest Neighbor | Greedy constructive heuristic | Fast initial solution |
-| 2-opt | Pairwise edge exchange | ~5% from optimal |
-| 3-opt | Triple edge exchange | ~2% from optimal |
-| Multi-start | Try multiple starting points | Best of several runs |
+| **ACO (default 8+)** | Ant Colony Optimization | Good quality, tunable |
+| Brute force (≤7) | Exact enumeration | Optimal |
+| Heuristic (optional) | NN + 2-opt/3-opt | ~2–5% from optimal |
 
 **Performance:** Solutions typically within 2-5% of optimal, computed in milliseconds even for 50+ points.
 
